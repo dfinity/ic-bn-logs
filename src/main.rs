@@ -106,54 +106,82 @@ async fn handle_websocket_connection(domain: String, canister_id: String) {
         tokio::select! {
             // Handle incoming WebSocket messages.
             message = read.next() => {
-                match message {
-                    Some(Ok(msg)) => {
-                        match msg {
-                            Message::Binary(bin) => {
-                                // Attempt to convert binary data to UTF-8 string, print to stdout.
-                                match String::from_utf8(bin) {
-                                    Ok(text) => {
-                                        println!("{}", text);
-                                    },
-                                    Err(e) => {
-                                        // If not valid UTF-8, log to stderr.
-                                        debug!("[{}] Received BINARY ({} bytes, not valid UTF-8): {}", domain, e.as_bytes().len(), e);
-                                    }
-                                }
-                            },
-                            _ => {
-                                debug!("[{}] Received unexpected message: {:?}", domain, msg);
-                            }
-                        }
-                        // Ensure stdout is flushed immediately
-                        io::stdout().flush().unwrap();
-                    },
-                    Some(Err(e)) => {
-                        error!("[{}] Error receiving message: {}", domain, e);
-                        break;
-                    },
-                    None => {
-                        info!("[{}] WebSocket connection closed by remote.", domain);
-                        break;
-                    }
+                if !handle_incoming_message(&domain, message) {
+                    break;
                 }
             },
             // Send a ping message periodically.
             _ = ping_interval.tick() => {
-                let ping_message = Message::Ping(vec![1, 2, 3, 4]);
-                match write.send(ping_message).await {
-                    Ok(_) => {
-                        debug!("[{}] Sent PING.", domain);
-                        io::stdout().flush().unwrap();
-                    },
-                    Err(e) => {
-                        error!("[{}] Error sending PING: {}", domain, e);
-                        break;
-                    }
+                if !send_ping_message(&domain, &mut write).await {
+                    break;
                 }
             }
         }
     }
 
     info!("[{}] Disconnected.", domain);
+}
+
+/// Handles an incoming WebSocket message and prints it to stdout
+fn handle_incoming_message(
+    domain: &str,
+    message: Option<Result<Message, tokio_tungstenite::tungstenite::Error>>,
+) -> bool {
+    match message {
+        Some(Ok(Message::Binary(bin))) => {
+            match String::from_utf8(bin) {
+                Ok(text) => {
+                    println!("{}", text);
+                }
+                Err(e) => {
+                    // If not valid UTF-8, log to stderr.
+                    debug!(
+                        "[{}] Received BINARY ({} bytes, not valid UTF-8): {}",
+                        domain,
+                        e.as_bytes().len(),
+                        e
+                    );
+                }
+            }
+            // Ensure stdout is flushed immediately
+            io::stdout().flush().unwrap();
+            true
+        }
+        Some(Ok(msg)) => {
+            debug!("[{}] Received unexpected message: {:?}", domain, msg);
+            true
+        }
+        Some(Err(e)) => {
+            error!("[{}] Error receiving message: {}", domain, e);
+            false
+        }
+        None => {
+            info!("[{}] WebSocket connection closed by remote.", domain);
+            false
+        }
+    }
+}
+
+/// Sends a ping message to keep the WebSocket connection alive
+async fn send_ping_message(
+    domain: &str,
+    write: &mut futures_util::stream::SplitSink<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+        Message,
+    >,
+) -> bool {
+    let ping_message = Message::Ping(vec![1, 2, 3, 4]);
+    match write.send(ping_message).await {
+        Ok(_) => {
+            debug!("[{}] Sent PING.", domain);
+            io::stdout().flush().unwrap();
+            true
+        }
+        Err(e) => {
+            error!("[{}] Error sending PING: {}", domain, e);
+            false
+        }
+    }
 }
