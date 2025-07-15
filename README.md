@@ -21,6 +21,18 @@ cargo run -- --canister-id qoctq-giaaa-aaaaa-aaaea-cai
 - `-c, --canister-id <CANISTER_ID>`: The canister ID to monitor logs for (required)
 - `-h, --help`: Show help information
 
+## Important Notes
+
+This demo illustrates how to connect to the API boundary nodes and stream access logs. It fetches the list of API boundary nodes once at startup, but this list can change over time (typically every few weeks or months).
+
+A production-grade system should:
+
+- Periodically refresh the API boundary node list
+- Automatically connect to newly added nodes
+- Handle removal of obsolete nodes
+
+Use this code as a starting point for building a more resilient log streaming solution.
+
 ## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
