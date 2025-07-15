@@ -64,30 +64,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// Handles a single WebSocket connection, sending pings and printing messages.
 async fn handle_websocket_connection(domain: String, canister_id: String) {
     // Construct the WebSocket URL.
-    let url_str = format!("wss://{}/logs/canister/{}", domain, canister_id);
+    let url_str = format!("wss://{domain}/logs/canister/{canister_id}");
 
     let url = match Url::parse(&url_str) {
         Ok(u) => u,
         Err(e) => {
-            error!("[{}] Failed to parse URL: {} - {}", domain, url_str, e);
+            error!("[{domain}] Failed to parse URL: {url_str} - {e}");
             return;
         }
     };
 
-    info!("[{}] Attempting to connect to: {}", domain, url);
+    info!("[{domain}] Attempting to connect to: {url}");
 
     // Attempt to connect to the WebSocket server.
     let (ws_stream, _) = match connect_async(url.to_string()).await {
         Ok((stream, response)) => {
             info!(
-                "[{}] WebSocket handshake successful! Response: {:?}",
-                domain,
+                "[{domain}] WebSocket handshake successful! Response: {:?}",
                 response.status()
             );
             (stream, response)
         }
         Err(e) => {
-            error!("[{}] Failed to connect: {}", domain, e);
+            error!("[{domain}] Failed to connect: {e}");
             return;
         }
     };
@@ -99,7 +98,7 @@ async fn handle_websocket_connection(domain: String, canister_id: String) {
     let mut ping_interval = interval(Duration::from_secs(10));
     ping_interval.tick().await; // Consume the first tick
 
-    info!("[{}] Starting message and ping loop...", domain);
+    info!("[{domain}] Starting message and ping loop...");
 
     // Loop indefinitely to handle incoming messages and send pings.
     loop {
@@ -119,7 +118,7 @@ async fn handle_websocket_connection(domain: String, canister_id: String) {
         }
     }
 
-    info!("[{}] Disconnected.", domain);
+    info!("[{domain}] Disconnected.");
 }
 
 /// Handles an incoming WebSocket message and prints it to stdout
@@ -131,15 +130,13 @@ fn handle_incoming_message(
         Some(Ok(Message::Binary(bin))) => {
             match String::from_utf8(bin) {
                 Ok(text) => {
-                    println!("{}", text);
+                    println!("{text}");
                 }
                 Err(e) => {
                     // If not valid UTF-8, log to stderr.
                     debug!(
-                        "[{}] Received BINARY ({} bytes, not valid UTF-8): {}",
-                        domain,
-                        e.as_bytes().len(),
-                        e
+                        "[{domain}] Received BINARY ({} bytes, not valid UTF-8): {e}",
+                        e.as_bytes().len()
                     );
                 }
             }
@@ -148,15 +145,15 @@ fn handle_incoming_message(
             true
         }
         Some(Ok(msg)) => {
-            debug!("[{}] Received unexpected message: {:?}", domain, msg);
+            debug!("[{domain}] Received unexpected message: {msg:?}");
             true
         }
         Some(Err(e)) => {
-            error!("[{}] Error receiving message: {}", domain, e);
+            error!("[{domain}] Error receiving message: {e}");
             false
         }
         None => {
-            info!("[{}] WebSocket connection closed by remote.", domain);
+            info!("[{domain}] WebSocket connection closed by remote.");
             false
         }
     }
@@ -175,12 +172,12 @@ async fn send_ping_message(
     let ping_message = Message::Ping(vec![1, 2, 3, 4]);
     match write.send(ping_message).await {
         Ok(_) => {
-            debug!("[{}] Sent PING.", domain);
+            debug!("[{domain}] Sent PING.");
             io::stdout().flush().unwrap();
             true
         }
         Err(e) => {
-            error!("[{}] Error sending PING: {}", domain, e);
+            error!("[{domain}] Error sending PING: {e}");
             false
         }
     }
