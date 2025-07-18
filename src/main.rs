@@ -5,6 +5,7 @@ use ic_agent::Agent;
 use log::{debug, error, info};
 use rustls::crypto::ring;
 use std::io::{self, Write};
+use strip_ansi_escapes::strip;
 use tokio::time::{interval, Duration};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
@@ -40,6 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     let api_bn_domains: Vec<String> = api_bns.iter().map(|node| node.domain.clone()).collect();
     info!("Fetched {} API boundary nodes.", api_bn_domains.len());
+    info!("{:?}", api_bn_domains);
 
     if api_bn_domains.is_empty() {
         error!("No API boundary nodes found. Exiting.");
@@ -128,12 +130,13 @@ fn handle_incoming_message(
 ) -> bool {
     match message {
         Some(Ok(Message::Binary(bin))) => {
-            match String::from_utf8(bin) {
-                Ok(text) => {
-                    println!("{text}");
+            // Strip ANSI escape sequences
+            let sanitized_bytes = strip(&bin);
+            match String::from_utf8(sanitized_bytes) {
+                Ok(sanitized_text) => {
+                    println!("{sanitized_text}");
                 }
                 Err(e) => {
-                    // If not valid UTF-8, log to stderr.
                     debug!(
                         "[{domain}] Received BINARY ({} bytes, not valid UTF-8): {e}",
                         e.as_bytes().len()
