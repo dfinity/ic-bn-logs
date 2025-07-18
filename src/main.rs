@@ -7,7 +7,10 @@ use rustls::crypto::ring;
 use std::io::{self, Write};
 use strip_ansi_escapes::strip;
 use tokio::time::{interval, Duration};
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{
+    connect_async_with_config,
+    tungstenite::{protocol::WebSocketConfig, Message},
+};
 use url::Url;
 
 #[derive(Parser)]
@@ -78,20 +81,28 @@ async fn handle_websocket_connection(domain: String, canister_id: String) {
 
     info!("[{domain}] Attempting to connect to: {url}");
 
-    // Attempt to connect to the WebSocket server.
-    let (ws_stream, _) = match connect_async(url.to_string()).await {
-        Ok((stream, response)) => {
-            info!(
-                "[{domain}] WebSocket handshake successful! Response: {:?}",
-                response.status()
-            );
-            (stream, response)
-        }
-        Err(e) => {
-            error!("[{domain}] Failed to connect: {e}");
-            return;
-        }
+    // Configure WebSocket with message size limits for security
+    let ws_config = WebSocketConfig {
+        max_message_size: Some(5 * 1024), // 5KB limit
+        max_frame_size: Some(5 * 1024),   // 5KB frame limit
+        ..Default::default()
     };
+
+    // Attempt to connect to the WebSocket server with configuration.
+    let (ws_stream, _) =
+        match connect_async_with_config(url.to_string(), Some(ws_config), false).await {
+            Ok((stream, response)) => {
+                info!(
+                    "[{domain}] WebSocket handshake successful! Response: {:?}",
+                    response.status()
+                );
+                (stream, response)
+            }
+            Err(e) => {
+                error!("[{domain}] Failed to connect: {e}");
+                return;
+            }
+        };
 
     // Split the WebSocket stream into a sender and a receiver.
     let (mut write, mut read) = ws_stream.split();
