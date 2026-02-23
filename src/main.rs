@@ -9,7 +9,7 @@ use strip_ansi_escapes::strip;
 use tokio::time::{interval, Duration};
 use tokio_tungstenite::{
     connect_async_with_config,
-    tungstenite::{protocol::WebSocketConfig, Message},
+    tungstenite::{protocol::WebSocketConfig, Bytes, Message},
 };
 use url::Url;
 
@@ -82,11 +82,9 @@ async fn handle_websocket_connection(domain: String, canister_id: String) {
     info!("[{domain}] Attempting to connect to: {url}");
 
     // Configure WebSocket with message size limits for security
-    let ws_config = WebSocketConfig {
-        max_message_size: Some(5 * 1024), // 5KB limit
-        max_frame_size: Some(5 * 1024),   // 5KB frame limit
-        ..Default::default()
-    };
+    let mut ws_config = WebSocketConfig::default();
+    ws_config.max_message_size = Some(5 * 1024); // 5KB limit
+    ws_config.max_frame_size = Some(5 * 1024); // 5KB frame limit
 
     // Attempt to connect to the WebSocket server with configuration.
     let (ws_stream, _) =
@@ -183,7 +181,7 @@ async fn send_ping_message(
         Message,
     >,
 ) -> bool {
-    let ping_message = Message::Ping(vec![1, 2, 3, 4]);
+    let ping_message = Message::Ping(Bytes::from(vec![1, 2, 3, 4]));
     match write.send(ping_message).await {
         Ok(_) => {
             debug!("[{domain}] Sent PING.");
